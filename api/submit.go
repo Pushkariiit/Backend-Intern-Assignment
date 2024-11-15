@@ -18,7 +18,6 @@ type VisitJob struct {
 	VisitTime string   `json:"visit_time"`
 }
 
-// SubmitJobHandler handles the job submission
 func SubmitJobHandler(w http.ResponseWriter, r *http.Request) {
 	var jobReq JobRequest
 	err := json.NewDecoder(r.Body).Decode(&jobReq)
@@ -27,6 +26,24 @@ func SubmitJobHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jobID := internal.StartJobProcessing(jobReq) // Initiate job processing
-	json.NewEncoder(w).Encode(map[string]int{"job_id": jobID})
+	// Attempt to start job processing
+	jobID, jobErr := internal.StartJobProcessing(jobReq)
+	if jobErr != nil {
+		jobID = ""
+		internal.AddJobEntry(jobID, jobReq, "failed")
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "failed",
+			"job_id": jobID,
+			"error":  jobErr.Error(),
+		})
+		return
+	}
+
+	internal.AddJobEntry(jobID, jobReq, "submitted")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": "submitted",
+		"job_id": jobID,
+	})
 }
